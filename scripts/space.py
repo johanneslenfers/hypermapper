@@ -33,6 +33,129 @@ class Parameter() :
         self.densities_alphas = {"uniform": 1.0, "gaussian": 3.0, "decay": 0.8, "exponential": 1}
         self.densities_betas = {"uniform": 1.0, "gaussian": 3.0, "decay": 1, "exponential": 0.8}
 
+
+
+
+def matches(a):
+    if (a % 2):
+        return True
+    else:
+        return False
+
+class constraintParameter(Parameter):
+
+    """
+    This class defines a constraint parameter, i.e. a list of integers, which divide a certain value
+    with zero rest. As we might have dependencies among different parameters, we have to check the
+    constraints at runtime.
+    """
+    def __init__(self, name, min_value, max_value, constraint, default, probability_distribution):
+        """
+        Initialization method. The possible value for this parameter are between min_value and max_value.
+        :param min_value: minimum value.
+        :param max_value: maximum value.
+        :param constraint: evaluable expression representing a constraint (or a set of constraints).
+        :param default: default value.
+        """
+        print("init param: " + str(name))
+        Parameter.__init__(self)
+        self.name = name
+        self.min_value = min_value
+        self.max_value = max_value
+        self.constraint = constraint
+        self.default = default
+        self.distribution = None
+
+        def constraintWrapper(parameter):
+            result = eval(self.constraint, {}, {self.name: parameter})
+            return result
+
+        self.values_list = list(filter(constraintWrapper, list(range(min_value, max_value+1))))
+
+        # self.values_list = list(range(min_value, max_value+1))
+        if isinstance(probability_distribution, str):
+            self.prior = probability_distribution
+            self.alpha = self.densities_alphas[probability_distribution]
+            self.beta = self.densities_betas[probability_distribution]
+        else:
+            self.prior = "distribution"
+            self.distribution = probability_distribution
+
+        # self.prior = "distribution"
+        # self.distribution = probability_distribution
+
+
+    # this function should get the context for its constraint
+    def randomly_select(self):
+        """
+        Sample from the specific beta distribution defined in the json for this parameter.
+        :return: the random sampled value from the set of available values.
+        """
+        prior = self.prior
+        if prior == "distribution":
+            # This is a common trick to sample from a known (discrete) distribution.
+            sample = random.random()
+            distribution = self.distribution
+            index = 0
+            counter = distribution[0]
+            while counter < sample:
+                index += 1
+                counter += distribution[index]
+            return self.values_list[index]
+        else:
+            sample = random.betavariate(self.densities_alphas[prior], self.densities_betas[prior])
+            return self.from_range_0_1_to_parameter_value(np.asarray([sample]))[0]
+
+
+
+    def get_size(self):
+        return len(self.values_list)
+
+    def get_discrete_size(self):
+        return self.get_size()
+
+    def get_discrete_values(self):
+        return self.values_list
+
+    def get_default(self):
+        return self.default
+
+    def get_min(self):
+        return self.min_value
+
+    def get_max(self):
+        return self.max_value
+
+
+    def from_range_0_1_to_parameter_value(self, X):
+        """
+        Scaling the values in X from ranges of [0, 1] to ranges defined by this parameter.
+        :param X: a numpy array of [0, 1] values.
+        :return: the scaled values to the range of this parameter.
+        """
+        if type(X) != np.ndarray and type(X) != list:
+            X = np.array([X])
+
+        X_indices_real = X[:] * (self.get_size()-1) - 0.5  # The 0.5 is explained by the fact that we want to give equal probability to all the values to be picked so we want to consider the interval around the value to pick.
+        X_indices_integer = [int(round(X_indices_real[i], 0)) for i in range(len(X_indices_real))]
+        X_return = []
+        for index in range(len(X_indices_integer)):
+            X_return.append(self.get_discrete_values()[X_indices_integer[index]])
+        return X_return
+
+    def from_parameter_value_to_0_1_range(self, X):
+        """
+        Scaling the values in X from its original range to [0, 1].
+        :param X: a vector of of parameter values.
+        :return: the scaled values to the [0, 1] range.
+        """
+        if type(X) == list:
+            return (X[:] - self.get_min())/(self.get_max() - self.get_min())
+        else:
+            return (X - self.get_min())/(self.get_max() - self.get_min())
+
+
+
 class RealParameter(Parameter) :
     """
     This class defines a real (continuous) parameter.
@@ -95,6 +218,7 @@ class RealParameter(Parameter) :
             sample = random.betavariate(self.alpha, self.beta)
             sample = self.from_range_0_1_to_parameter_value(np.asarray([sample]))[0]
         return sample
+
 
     def randomly_select_uniform(self):
         """
@@ -594,7 +718,7 @@ class Space :
         else:
             self.feasible_output_name = None
 
-        # Process input parameters from the json file
+        # Process input parameters from the json filparsee
         self.all_input_parameters = OrderedDict()
         self.input_non_categorical_parameters = OrderedDict()
         self.input_categorical_parameters = OrderedDict()
@@ -743,6 +867,25 @@ class Space :
                 self.all_input_parameters[param_name] = IntegerParameter(min_value=param_min, max_value=param_max, default=param_default, probability_distribution=param_distribution)
                 self.input_non_categorical_parameters[param_name] = self.all_input_parameters[param_name]
                 self.parameters_type[param_name] = "integer"
+                self.parameters_python_type[param_name] = "int"
+            elif param_type == "constraint":
+                print("welcome to parse constraint parameters")
+                param_min, param_max = param["values"]
+                constraint = param["constraint"]
+                print("break 0")
+                print("min: " + str(param_min))
+                print("max: " + str(param_max))
+                print("constraint: " + str(constraint))
+                print("so far, so good")
+
+                if (param_min > param_max):
+                    param_min, param_max = param_max, param_min  # breaks if min is greater than max. It does not break for real variables.
+                self.all_input_parameters[param_name] = constraintParameter(name=param_name,min_value=param_min, max_value=param_max,
+                                                                            constraint=constraint,
+                                                                         default=param_default,
+                                                                         probability_distribution=param_distribution)
+                self.input_non_categorical_parameters[param_name] = self.all_input_parameters[param_name]
+                self.parameters_type[param_name] = "constraint"
                 self.parameters_python_type[param_name] = "int"
 
     def get_type(self, parameter) :
@@ -1128,6 +1271,7 @@ class Space :
         """
         type = self.get_type(header)
         python_type = self.get_python_type(header)
+
         if type == "ordinal":
             return data_list[header]
         elif type == "real":
@@ -1139,6 +1283,8 @@ class Space :
             for elem in data_list[header]:
                 to_return.append(self.all_input_parameters[header].get_original_string(elem))
             return to_return
+        elif type == "constraint":
+            return data_list[header]
         elif type == "optimization_metric":
             return data_list[header]
         elif type == "timestamp":
@@ -1500,7 +1646,7 @@ class Space :
             counter=0
             for cartesian_element in itertools.product(*[param_values for param_values in parameters_values_categorical.values()]): # cartesian_element here is a tuple
                 for i in range(n):
-                    for j, param in enumerate(parameters_values_categorical.keys()):
+                    for j, param in  enumerate(parameters_values_categorical.keys()):
                         tmp_configurations[counter][param] = cartesian_element[j]
                     counter+=1
                     if counter >= number_of_samples: # No enough sampling budget to continue on the whole Cartesian product of size m

@@ -630,8 +630,6 @@ def main(config, black_box_function=None, output_file=""):
         tree_means_per_leaf=None
         tree_vars_per_leaf=None
 
-
-
     log_file = deal_with_relative_and_absolute_path(run_directory, config["log_file"])
     sys.stdout.change_log_file(log_file)
     if (hypermapper_mode == 'client-server'):
@@ -749,6 +747,7 @@ def main(config, black_box_function=None, output_file=""):
         objective_limits[objective] = [lower_bound, upper_bound]
     print("\nEnd of doe phase, the number of new configuration runs is: %d\n" %absolute_configuration_index)
     sys.stdout.write_to_logfile(("End of DoE - Time %10.4f sec\n" % ((datetime.datetime.now() - doe_t0).total_seconds())))
+
     if doe_type == "grid_search" and optimization_iterations > 0:
         print("Warning: DoE is grid search, setting number of optimization iterations to 0")
         optimization_iterations = 0
@@ -825,6 +824,8 @@ def main(config, black_box_function=None, output_file=""):
                                                                             feasible_predictor_grid_search_validation_file=feasible_predictor_grid_search_validation_file,
                                                                             print_importances=print_importances)
         model_t1 = datetime.datetime.now()
+
+
         if (weight_sampling == "bounding_box"):
             objective_weights = sample_weight_bbox(optimization_metrics, objective_bounds, 1)[0]
         elif (weight_sampling == "flat"):
@@ -849,7 +850,6 @@ def main(config, black_box_function=None, output_file=""):
                                                                                         objective_limits,
                                                                                         objective_bounds,
                                                                                         scalarization_method)
-
             data_array[scalarization_key] = data_array_scalarization.tolist()
             _ , best_configuration = local_search(
                                                 local_search_starting_points,

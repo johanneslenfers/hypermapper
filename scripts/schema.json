@@ -150,7 +150,7 @@
                     "parameter_type": {
                         "description": "The type of the parameter that is being defined.",
                         "type": "string",
-                        "enum": ["ordinal", "categorical", "real", "integer"]
+                        "enum": ["ordinal", "categorical", "real", "integer", "constraint"]
                     },
                     "values": {
                         "type": "array",
@@ -167,7 +167,10 @@
                                 { "type": "string" },
                                 { "type": "number" }
                                 ]
-                    }
+                    },
+                   "constraint" : {
+                     "type" : "string"
+                   }
                  },
                  "additionalProperties": false,
                  "required": ["parameter_type", "values"]

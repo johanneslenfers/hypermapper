@@ -118,7 +118,10 @@ def get_neighbors(configuration, param_space):
                         neighbor.append(configuration[input_param])
                 if neighbor not in neighbors:
                     neighbors.append(neighbor)
-        elif (param_type == 'real') or (param_type == 'integer'):
+        elif (param_type == 'real') or (param_type == 'integer') or (param_type == 'constraint'):
+
+            # WARNING: Is this checked properly? check this!
+
             param_value = configuration[param_name]
             param_min = param_object.get_min()
             param_max = param_object.get_max()
@@ -371,6 +374,7 @@ def local_search(
 
         sys.stdout.write_to_logfile("Starting local search iteration: " + str(search_iteration) + "\n")
         iteration_t0 = datetime.datetime.now()
+
         for idx in range(len(local_search_configurations[list(local_search_configurations.keys())[0]])):
             configuration = get_single_configuration(local_search_configurations, idx)
             sys.stdout.write_to_logfile("Starting local search on configuration: " + str(configuration) + "\n")
@@ -382,6 +386,7 @@ def local_search(
             function_values_size = len(function_values)
             new_data_array = concatenate_list_of_dictionaries(neighbors[:function_values_size])
             new_data_array[scalarization_key] = function_values
+
             if enable_feasible_predictor:
                 new_data_array[feasible_parameter] = feasibility_indicators
 
