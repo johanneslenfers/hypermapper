@@ -718,7 +718,7 @@ class Space :
         else:
             self.feasible_output_name = None
 
-        # Process input parameters from the json filparsee
+        # Process input parameters from the json file
         self.all_input_parameters = OrderedDict()
         self.input_non_categorical_parameters = OrderedDict()
         self.input_categorical_parameters = OrderedDict()
