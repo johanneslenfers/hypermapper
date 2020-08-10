@@ -1,0 +1,19 @@
+{
+    "application_name": "rise-program",
+    "optimization_objectives": ["runtime"],
+    "optimization_iterations": 90,
+    "input_parameters" : {
+        "v_N_14": {
+            "parameter_type" : "constraint",
+            "values" : [1, 512],
+	    "parameter_default" : 1,
+	    "constraint" : "512 % v_N_14 == 0"
+        },
+	"v_B_14": {
+            "parameter_type" : "constraint",
+            "values" : [1, 512],
+	    "parameter_default" : 1,
+    	    "constraint" : "v_N_14 % v_B_14 == 0"
+        }
+    }
+}

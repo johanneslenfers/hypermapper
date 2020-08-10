@@ -70,7 +70,8 @@ class constraintParameter(Parameter):
             result = eval(self.constraint, {}, {self.name: parameter})
             return result
 
-        self.values_list = list(filter(constraintWrapper, list(range(min_value, max_value+1))))
+        # self.values_list = list(filter(constraintWrapper, list(range(min_value, max_value+1))))
+        self.values_list = list(range(min_value, max_value+1))
 
         # self.values_list = list(range(min_value, max_value+1))
         if isinstance(probability_distribution, str):
@@ -86,12 +87,23 @@ class constraintParameter(Parameter):
 
 
     # this function should get the context for its constraint
-    def randomly_select(self):
+    def randomly_select(self, context):
         """
         Sample from the specific beta distribution defined in the json for this parameter.
         :return: the random sampled value from the set of available values.
         """
         prior = self.prior
+
+        def constraintWrapper(parameter):
+            # copy dictionary and add parameter
+            local = context.copy()
+            local[self.name] = parameter
+
+            result = eval(self.constraint, {}, local)
+            return result
+
+        self.values_list = list(filter(constraintWrapper, list(range(self.min_value, self.max_value+1))))
+
         if prior == "distribution":
             # This is a common trick to sample from a known (discrete) distribution.
             sample = random.random()
@@ -101,9 +113,15 @@ class constraintParameter(Parameter):
             while counter < sample:
                 index += 1
                 counter += distribution[index]
+
+            print("choosen value prior: " + str(self.values_list[index]))
             return self.values_list[index]
         else:
             sample = random.betavariate(self.densities_alphas[prior], self.densities_betas[prior])
+            print("choosen value not prior: " + str(self.from_range_0_1_to_parameter_value(np.asarray([sample]))[0]))
+            test = np.asarray([sample])
+            print("test: " + str(test))
+            print("value: " + str(self.from_range_0_1_to_parameter_value(np.asarray([sample]))[0]))
             return self.from_range_0_1_to_parameter_value(np.asarray([sample]))[0]
 
 
@@ -133,16 +151,34 @@ class constraintParameter(Parameter):
         :param X: a numpy array of [0, 1] values.
         :return: the scaled values to the range of this parameter.
         """
-        if type(X) != np.ndarray and type(X) != list:
-            X = np.array([X])
-
-        X_indices_real = X[:] * (self.get_size()-1) - 0.5  # The 0.5 is explained by the fact that we want to give equal probability to all the values to be picked so we want to consider the interval around the value to pick.
+        X_indices_real = X * self.get_size() - 0.5  # The 0.5 is explained by the fact that we want to give equal probability to all the values to be picked so we want to consider the interval around the value to pick.
         X_indices_integer = [int(round(X_indices_real[i], 0)) for i in range(len(X_indices_real))]
         X_return = []
         for index in range(len(X_indices_integer)):
+            if X_indices_integer[index] == self.get_size(): # Deals with the case there is a X[i] = 1. The round will give an out-of-array index in that case.
+                X_indices_integer[index] -= 1
             X_return.append(self.get_discrete_values()[X_indices_integer[index]])
         return X_return
 
+    #
+    # # this should be same scaling as in ordinal parameters
+    # def from_range_0_1_to_parameter_value(self, X):
+    #     """
+    #     Scaling the values in X from ranges of [0, 1] to ranges defined by this parameter.
+    #     :param X: a numpy array of [0, 1] values.
+    #     :return: the scaled values to the range of this parameter.
+    #     """
+    #     if type(X) != np.ndarray and type(X) != list:
+    #         X = np.array([X])
+    #
+    #     X_indices_real = X[:] * (self.get_size()-1) - 0.5  # The 0.5 is explained by the fact that we want to give equal probability to all the values to be picked so we want to consider the interval around the value to pick.
+    #     X_indices_integer = [int(round(X_indices_real[i], 0)) for i in range(len(X_indices_real))]
+    #     X_return = []
+    #     for index in range(len(X_indices_integer)):
+    #         X_return.append(self.get_discrete_values()[X_indices_integer[index]])
+    #     return X_return
+
+    # this should be same scaling as in ordinal parameters
     def from_parameter_value_to_0_1_range(self, X):
         """
         Scaling the values in X from its original range to [0, 1].
@@ -1128,9 +1164,15 @@ class Space :
         else:
             for k in input_parameters:
                 if use_priors:
-                    configuration[k] = self.all_input_parameters[k].randomly_select()
+                    if(self.get_type(self.all_input_parameters[k].name) == 'constraint'):
+                        tmp = self.all_input_parameters[k].randomly_select(configuration)
+                    else:
+                        tmp = self.all_input_parameters[k].randomly_select()
+
+                    configuration[k] = tmp
                 else:
                     configuration[k] = self.all_input_parameters[k].randomly_select_uniform()
+
         return configuration
 
     def get_configuration_probability(self, configuration):
@@ -1432,6 +1474,10 @@ class Space :
         :param debug: is the debug flag enabled?
         :return: 2 outputs: the dictionary containing the data sampled and a fast addressing of the same data in the form of an array.
         """
+
+        print("all data array: " + str(all_data_array))
+        exit(0)
+
         input_parameters = self.get_input_parameters()
         len_all_data_array = len(all_data_array[input_parameters[0]])
         if debug:
@@ -1486,6 +1532,9 @@ class Space :
             absolute_configuration_index = 0
         else:
             absolute_configuration_index = np.asarray(arr, dtype=np.int).max() + 1
+
+        print("fast_addressing_of_data_array: " + str(fast_addressing_of_data_array.values()))
+        # exit(0)
 
         # See if input space is big enough otherwise it doesn't make sense to draw number_of_RS samples.
         if (self.get_space_size() - len(fast_addressing_of_data_array)) <= number_of_RS:
